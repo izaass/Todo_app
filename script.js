@@ -16,7 +16,7 @@ function renderTask(task) {
      taskRow.append(taskNameCell);
 
      // Create the status cell
-     const statusCell = $("<td style='width:10%'>").text("Chưa xong");
+     const statusCell = $("<td style='width:10%'>").text("Incomplete");
      taskRow.append(statusCell);
 
      // Create the delete action
