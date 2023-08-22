@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <title>Task List</title>
+     <!-- Bootstrap 5 CSS -->
+     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css">
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+     <style>
+          .important-task {
+               background-color: #ff7f1a;
+          }
+
+          .urgent-task {
+               background-color: #c64742;
+          }
+
+          .pending-task {
+               background-color: #ffe28a;
+          }
+     </style>
+</head>
+
+<body>
+     <div class="container-fluid my-5">
+          <span style="font-weight: bold; font-size: 3em;" class="mb-4">Task List</span>
+          <button id="export-button" class="btn btn-primary" style="float: right;"><i class="fas fa-download"></i>
+               Export to Excel</button>
+
+          <!-- <span>Hãy thêm tên tương ứng để hiển thị màu mè</span>
+          <a class="btn" style="background-color:#c64742; color: whitesmoke;">Ugent</a>
+          <a class="btn" style="background-color:#ff7f1a; color: whitesmoke;"> Important</a>
+          <a class="btn" style="background-color:#ffe28a;"> Pending</a> -->
+          <form id="add-task-form" class="mb-4">
+               <div class="form-group">
+                    <label for="task-name">Task Name</label>
+                    <input type="text" id="task-name" class="form-control" required>
+               </div><br>
+               <button type="submit" class="btn btn-success"><i class="fas fa-plus"></i> Add Task</button>
+          </form>
+          <div class="row">
+               <div class="col">
+                    <h2>To Do</h2>
+                    <table id="todo-table" class="table">
+                         <thead>
+                              <tr>
+                                   <th>Task</th>
+                                   <th>Date</th>
+                                   <th>Status</th>
+                                   <th class="th-right">Action</th>
+                              </tr>
+                         </thead>
+                         <tbody>
+                              <!-- Tasks will be added here dynamically -->
+                         </tbody>
+                    </table>
+               </div>
+               <!-- </div>
+          <div class="row"> -->
+               <div class="col">
+                    <h2>Completed</h2>
+                    <table id="completed-table" class="table">
+                         <thead>
+                              <tr>
+                                   <th>Task</th>
+                                   <th>Date</th>
+                                   <th>Status</th>
+                                   <th class="th-right">Action</th>
+                              </tr>
+                         </thead>
+                         <tbody>
+                              <!-- Completed tasks will be added here dynamically -->
+                         </tbody>
+                    </table>
+               </div>
+          </div>
+     </div>
+     <!-- jQuery and Bootstrap 5 JavaScript -->
+     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.min.js"></script>
+     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.2/xlsx.full.min.js"></script>
+
+     <script>
+          // Get the task name input field and the two tables
+          const taskNameInput = $("#task-name");
+          const todoTable = $("#todo-table");
+          const completedTable = $("#completed-table");
+
+          // Get the task list from local storage, or initialize it to an empty array
+          const taskList = JSON.parse(localStorage.getItem("tasks")) || [];
+
+          // Function to render a single task in the todo table
+          function renderTask(task) {
+               // Create the task row
+               const taskRow = $("<tr>");
+
+               // Create the task name cell
+               const taskNameCell = $("<td style='width:50%'>").text(task.name.toUpperCase());
+               taskRow.append(taskNameCell);
+               // Create the date cell
+               const dateCell = $("<td>").text(task.date);
+               taskRow.append(dateCell);
+               // Create the status cell
+               const statusCell = $("<td>").text("ToDo");
+               taskRow.append(statusCell);
+               if (task.name.toLowerCase().includes('important')) {
+                    taskRow.addClass('important-task');
+               } else if (task.name.toLowerCase().includes('urgent')) {
+                    taskRow.addClass('urgent-task');
+               } else if (task.name.toLowerCase().includes('pending')) {
+                    taskRow.addClass('pending-task');
+               }
+               // Create the delete action
+               const actionCell = $("<td>");
+               //khai báo nút xóa
+               const deleteButton = $("<button>").addClass("btn btn-danger").html('<i class="fas fa-trash"></i>');
+               deleteButton.on("click", function () {
+                    // Use the confirm dialog to ask for confirmation
+                    const confirmDelete = confirm("Are you sure you want to delete this task?");
+
+                    if (confirmDelete) {
+                         const index = taskList.indexOf(task);
+                         taskList.splice(index, 1);
+                         saveTasks();
+                         renderTasks();
+                    }
+               });
+
+               // khai báo nút sửa
+               const editButton = $("<button>").addClass("btn btn-primary").html('<i class="fas fa-edit"></i>');
+               editButton.on("click", function () {
+                    editTask(task);
+               });
+               //btn incomplete
+               const completeButton = $("<button>").addClass("btn btn-warning").html('<i class="fas fa-check"></i>');
+               completeButton.on("click", function () {
+                    task.completed = true;
+                    task.date = new Date().toLocaleString(); // Add current date and time
+                    renderTasks();
+                    saveTasks();
+               });
+               actionCell.append(completeButton);
+               //hiển thị nút sửa
+               actionCell.append(editButton);
+               //hiển thị nút xóa
+               actionCell.append(deleteButton);
+               //đóng thẻ td
+               taskRow.append(actionCell);
+               // Append the task row to the todo table
+               todoTable.append(taskRow);
+
+          }
+
+          // Function to render all tasks in the task list
+          function renderTasks() {
+               // Clear the tables
+               todoTable.find("tbody").empty();
+               completedTable.find("tbody").empty();
+
+               // Loop through the task list and render each task in the appropriate table
+               for (const task of taskList) {
+                    if (task.completed) {
+                         renderCompletedTask(task);
+                    } else {
+                         renderTask(task);
+                    }
+               }
+          }
+
+          function renderCompletedTask(task) {
+               // Create the task row
+               const taskRow = $("<tr>");
+
+               // Create the task name cell
+               const taskNameCell = $("<td style='width:50%'>").text(task.name.toUpperCase());
+               taskRow.append(taskNameCell);
+
+               // Create the date
+               const dateCell = $("<td>").text(task.date);
+               taskRow.append(dateCell);
+
+               // Create the status cell
+               const statusCell = $("<td>").text("Completed");
+               taskRow.append(statusCell);
+
+               // Create the action cell
+               const actionCell = $("<td>");
+
+               //Create the edit action cell
+               const editButton = $("<button>").addClass("btn btn-primary").html('<i class="fas fa-edit"></i>');
+               editButton.on("click", function () {
+                    editTask(task);
+               });
+               const deleteButton = $("<button>").addClass("btn btn-danger").html('<i class="fas fa-trash"></i>');
+               deleteButton.on("click", function () {
+                    // Use the confirm dialog to ask for confirmation
+                    const confirmDelete = confirm("Are you sure you want to delete this task?");
+
+                    if (confirmDelete) {
+                         const index = taskList.indexOf(task);
+                         taskList.splice(index, 1);
+                         saveTasks();
+                         renderTasks();
+                    }
+               });
+               if (task.name.toLowerCase().includes('important')) {
+                    taskRow.addClass('important-task');
+               } else if (task.name.toLowerCase().includes('urgent')) {
+                    taskRow.addClass('urgent-task');
+               } else if (task.name.toLowerCase().includes('pending')) {
+                    taskRow.addClass('pending-task');
+               }
+               //btn incompleted
+               if (task.completed) {
+                    const incompleteButton = $("<button>").addClass("btn btn-warning").html(
+                         '<i class="fas fa-times"></i>');
+                    incompleteButton.on("click", function () {
+                         task.completed = false;
+                         renderTasks();
+                         saveTasks();
+                    });
+                    actionCell.append(incompleteButton);
+               }
+               //hiển thị các nút
+               actionCell.append(editButton);
+               actionCell.append(deleteButton);
+               // đóng thẻ td
+               taskRow.append(actionCell);
+
+               // Append the task row to the completed table
+               completedTable.find("tbody").append(taskRow);
+          }
+
+
+          //function edit task using prompt
+          function editTask(task) {
+               const newName = prompt("Enter the new name for the task:", task.name);
+               //const newDescription = prompt("Enter the new description for the task:", task.description);
+               if (newName !== null) {
+                    //if (newName !== null && newDescription !== null) {
+                    task.name = newName;
+                    //task.description = newDescription;
+                    saveTasks();
+                    renderTasks();
+               }
+          }
+
+          function addTask(name) {
+               const task = {
+                    name,
+                    completed: false,
+                    date: new Date().toLocaleString() // Add current date and time
+               };
+               taskList.push(task);
+               saveTasks();
+               renderTasks();
+          }
+
+          // Function to save the task list to local storage
+          function saveTasks() {
+               localStorage.setItem("tasks", JSON.stringify(taskList));
+          }
+
+          // Event listener for the add task form submit event
+          $("#add-task-form").on("submit", function (event) {
+               event.preventDefault();
+               const taskName = taskNameInput.val().trim();
+               if (taskName) {
+                    addTask(taskName);
+                    taskNameInput.val("");
+               }
+          });
+
+          // Render the tasks on page load
+          renderTasks();
+     </script>
+     <script>
+          function getTableData(table) {
+               const rows = table.querySelectorAll('tr');
+               const data = [];
+
+               rows.forEach(row => {
+                    const rowData = [];
+                    row.querySelectorAll('td, th').forEach(cell => {
+                         rowData.push(cell.innerText);
+                    });
+                    data.push(rowData);
+               });
+
+               return data;
+          }
+
+          function exportBothTablesToExcel(filename, rowSpacing) {
+               // Select the tables
+               const todoTable = document.getElementById("todo-table");
+               const completedTable = document.getElementById("completed-table");
+
+               // Get the data from both tables
+               const todoData = getTableData(todoTable);
+               const completedData = getTableData(completedTable);
+
+               // Combine the data from both tables with row spacing and headings
+               const combinedData = combineWithRowSpacingAndHeadings(todoData, completedData, rowSpacing);
+
+               // Create a Blob with the combined data
+               const blob = new Blob([combinedData.map(row => row.join('\t')).join('\n')], {
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+               });
+
+               // Create a URL for the Blob
+               const url = URL.createObjectURL(blob);
+
+               // Create a download link and trigger the download
+               const a = document.createElement('a');
+               a.href = url;
+               a.download = filename;
+               a.click();
+
+               // Revoke the URL to free up resources
+               URL.revokeObjectURL(url);
+          }
+
+          function combineWithRowSpacingAndHeadings(data1, data2, rowSpacing) {
+               const combinedData = [];
+
+               // Add the "To Do" heading
+               combinedData.push(['To Do']); // Add a row with the heading
+
+               // Add data from the first table
+               combinedData.push(...data1);
+
+               // Add empty rows for spacing
+               for (let i = 0; i < rowSpacing; i++) {
+                    combinedData.push(['']); // Add an empty row with a single empty cell
+               }
+
+               // Add the "Completed" heading
+               combinedData.push(['Completed']); // Add a row with the heading
+
+               // Add data from the second table
+               combinedData.push(...data2);
+
+               return combinedData;
+          }
+
+          // Event listener for the export button
+          document.getElementById("export-button").addEventListener("click", function () {
+               // Export both tables to a single Excel file with row spacing of 2 rows
+               exportBothTablesToExcel("TaskList.xls", 2);
+          });
+     </script>
+</body>
+
+</html>
